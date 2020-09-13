@@ -752,5 +752,5 @@ print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test, y_p
 
 > Examine other curve-fitting models and compare results
 
-> Explore relationships between feature classifciation and r, g, and b ratios
+> Explore relationships between feature classification and r, g, and b ratios
 """
