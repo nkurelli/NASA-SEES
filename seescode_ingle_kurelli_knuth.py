@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from google.colab import files
 
-#Upload GLOBE csv & save as pandas df
+#Upload GLOBE Land Cover csv & save as pandas df
 import pandas as pd
 
 csv_uploaded = files.upload()
@@ -68,7 +68,7 @@ globe_df.tail()
 
 print(globe_df.shape)
 
-"""##**Step 3** -- Remove entries that are NOT from the 2020 SEES group 
+"""##**Step 3** -- Remove entries that are NOT from the 2020 SEES group
 > Keep entry IF School Name is *United States of America Citizen Science*
 """
 
@@ -166,18 +166,20 @@ import matplotlib.image as mpimg
 import cv2
 from collections import Counter
 
-from sklearn.cluster import KMeans
+#from sklearn.cluster import KMeans
 
-import urllib.request 
+import urllib.request
 
 from PIL import Image, ImageEnhance
 
-"""##**Step 3** -- Create methods to extract median RGB values from each image in globe_df 
+"""##**Step 3** -- Create methods to extract median RGB values from each image in globe_df
 > NOTE -- Each globe_df image-url points to the NORTH image.
 
 1. Create Method_1: *Extract image from url. Sharpen/brighten image.*
 2. Create Method_2: *Return median RGB values from 1 image*
-3. Interate through all images in globe_df['Measured Value'], creating an rgb_vals dataframe with each image's median RGB values.
+3. Interate through all images in `globe_df['Measured Value']`, creating an `rgb_vals` dataframe with each image's median RGB values.
+
+
 """
 
 #Param: String url
@@ -190,7 +192,7 @@ def get_img_from_url(url):
   #SHARPEN IMAGE
   sharpener = ImageEnhance.Sharpness(img.convert('RGB'))
   sharpened = sharpener.enhance(2.0)
-  
+
   #ENHANCE IMAGE BRIGHTNESS
   converter = ImageEnhance.Color(sharpened)
   converted = converter.enhance(1.5)
@@ -215,13 +217,13 @@ def get_median_rgb_vals(image_as_array):
   dict_row = {'r':med_r, 'g':med_g, 'b':med_b}
   return dict_row
 
-"""##**Step 4** -- Either create rgb_vals or upload the csv if that process has been completed previously
+"""##**Step 4** -- Either create `rgb_vals` or upload the csv if that process has been completed previously
 
 > Note: Generating this csv takes some time. So, if you already have the rgb_vals csv, just upload it using the appropriate code cells!
 
-###If you do NOT have the **rgb_vals** csv, run the cells below to generate:
-* Dateframe rgb_vals
-* CSV rgb_vals
+###If you do NOT have the `rgb_vals` csv, run the cells below to generate:
+* Dateframe `rgb_vals`
+* CSV `rgb_vals`
 """
 
 rgb_vals = []
@@ -231,10 +233,10 @@ for url_img in globe_df['Measured Value']:
   #obtain img & compress
   img = get_img_from_url(url_img)
   convert_to_thumbnail(img)
-  
+
   #convert img to np.array
   img_array = np.array(img)
-  
+
   #get 3 calc veg indices val
   dict_row = get_median_rgb_vals(img_array)
 
@@ -255,7 +257,7 @@ print(type(rgb_vals))
 #downloads as csv
 files.download('rgb_vals')
 
-"""###If you DO have the rgb_vals csv, run the cells below to upload and save as a Dataframe:"""
+"""###If you DO have the `rgb_vals` CSV, run the cells below to upload and save as a Dataframe:"""
 
 rgb_vals = files.upload()
 for fn in rgb_vals.keys():
@@ -294,27 +296,27 @@ appears_df
 """#Section 6 -- Organize appears_df
 
 ##**Step 1** -- Remove all unnecessary columns
-> Keep: 'ID', 'Latitude', 'Longitude', 'Date', 'MOD13A1_006__500m_16_days_NDVI'
+> Keep: `ID`, `Latitude`, `Longitude`, `Date`, `MOD13A1_006__500m_16_days_NDVI`
 """
 
 appears_df = appears_df[['ID','Latitude','Longitude','Date','MOD13Q1_006__250m_16_days_NDVI']]
 appears_df
 
-"""##**Step 2** -- Rename 'MOD13A1_006__500m_16_days_NDVI' to instead be 'NDVI'"""
+"""##**Step 2** -- Rename `MOD13A1_006__500m_16_days_NDVI` to instead be `NDVI`"""
 
 appears_df.columns = ['ID','Latitude','Longitude','Date','NDVI']
 appears_df
 
 """##**Step 3** -- Clean-up NDVI column
-> For each location, the AppEEARS data request returned NDVI for 3 different dates: May 24, 2020, June 9, 2020, and June 25, 2020. 
+> For each location, the AppEEARS data request returned NDVI for 3 different dates: May 24, 2020, June 9, 2020, and June 25, 2020.
 
-> The AppEEARS data request also listed some NDVIs as -3000, an extraneous value that denotes the uselessness of that particular NDVI measurement. 
+> The AppEEARS data request also listed some NDVIs as -3000, an extraneous value that denotes the uselessness of that particular NDVI measurement.
 
-> So, we established an algorithm to address both these protocols and create 1 NDVI metric for each point. 
+> So, we established an algorithm to address both these protocols and create 1 NDVI metric for each point.
 
 > This method does the following:
->> Given a unique ID, we extract the corresponding NDVI values from the three different dates. 
->> We then iterated through each of those NDVI values; if all three NDVIs were extraneous, we recorded that ID to ignore in future calculations. 
+>> Given a unique ID, we extract the corresponding NDVI values from the three different dates.
+>> We then iterated through each of those NDVI values; if all three NDVIs were extraneous, we recorded that ID to ignore in future calculations.
 >> Otherwise, if at least one NDVI was positive, then we assigned the median of all non-extraneous NDVI values at that ID to that location ID.
 
 We used Median instead of Mean, since Median is less sensitive to outliers.
@@ -323,7 +325,7 @@ We used Median instead of Mean, since Median is less sensitive to outliers.
 #print(appears_df.loc[appears_df['ID'] == 1984])
 
 #given inputted id #, get those 3 ndvi vals
-#if ndvi val is pos, add to ids_ndvi .. then add median ndvi to new df 
+#if ndvi val is pos, add to ids_ndvi .. then add median ndvi to new df
 #if all 3 ndvis < 0, record that ID num as part of rgb_vals to be ignore & not add to df
 
 #PARAM -- ID = int
@@ -334,15 +336,15 @@ def calc_median_ndvi(ID):
   ids_ndvi = []
 
   count = 0 #num of extranneous vals
-  
+
   for i in indexNames:
     ndvi_val = appears_df['NDVI'][i]
-    
+
     if (ndvi_val < 0) or (ndvi_val > 1):
       count += 1
     else:
       ids_ndvi.append(ndvi_val)
-  
+
   #if all 3 ndvis = extranneous
   if count == 3:
     return -3000
@@ -357,11 +359,11 @@ for id in rgb_vals['ID']:
   g_val = rgb_vals['Median g'][id]
   b_val = rgb_vals['Median b'][id]
   ndvi_index = calc_median_ndvi(id)
-  
+
   dict_row = {'ID':id, 'Med_r':r_val, 'Med_g':g_val,'Med_b':b_val,'NDVI':ndvi_index}
   df_as_list.append(dict_row)
   #print(dict_row) --> Un-comment this if you want to see the progression.
-  
+
 df = pd.DataFrame(df_as_list)
 
 df
@@ -391,7 +393,7 @@ df.head(25)
 """
 
 # Commented out IPython magic to ensure Python compatibility.
-import seaborn as sns 
+import seaborn as sns
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.linear_model import LinearRegression
 from sklearn import metrics
@@ -425,7 +427,7 @@ ax.set_xlabel("r")
 ax.set_ylabel("g")
 ax.set_zlabel("b")
 plt.savefig("3D_rgb_v_ndvi.jpg")
-files.download("3D_rgb_v_ndvi.jpg") 
+files.download("3D_rgb_v_ndvi.jpg")
 plt.show()
 
 plt.figure(figsize=(15,10))
@@ -461,7 +463,7 @@ for ax, title in zip(f.axes, titles):
 #plt.title("RGB Values vs NDVI")
 #kind='reg' adds line of best fit && 95%confidence
 
-"""##**Step 5** -- Multiple Linear Regression 
+"""##**Step 5** -- Multiple Linear Regression
 
 >$\hat{y} = \beta_0 + \beta_1x_1 + \beta_2x_2 + ... + \beta_nx_n$
 * $\hat{y}$ is the predicted response
@@ -532,12 +534,9 @@ print(linreg.coef_)
 y_pred = linreg.predict(x_test)
 
 """Therefore, our function is as follows:
- 
- 
-$$\widehat{NDVI} = 0.5758681819753635 + (-0.00149881) \times r + (0.00184785) \times g + (-0.00094755) \times b$$
 
-###**Step 5.D** -- Visualizing LSRL?????
-> Dont run this section ... still gotta figure out how to add LSRL
+
+$$\widehat{NDVI} = 0.5758681819753635 + (-0.00149881) \times r + (0.00184785) \times g + (-0.00094755) \times b$$
 
 ###CREATE SUMMARY DF WITH RGB & PRED
 """
@@ -559,7 +558,7 @@ def get_rgb_vals_from_df(ID):
 
 for i in rgb_and_pred_ndvi['ID']:
   mini_rgb_df.append(get_rgb_vals_from_df(i))
-  
+
 
 mini_rgb_df = pd.DataFrame(mini_rgb_df)
 mini_rgb_df
@@ -571,6 +570,8 @@ rgb_and_pred_ndvi['Predicted NDVI'] = rgb_and_pred_ndvi['Predicted']
 rgb_and_pred_ndvi
 
 rgb_and_pred_ndvi = rgb_and_pred_ndvi[['ID','Med r', 'Med g', 'Med b', 'Predicted NDVI']]
+rgb_and_pred_ndvi.columns = ['ID','Med r', 'Med g', 'Med b', 'Predicted NDVI']
+
 rgb_and_pred_ndvi
 
 """**Method** -- Given residual target, find the corressponding image
@@ -592,6 +593,7 @@ plt.savefig("Scatterplot Comparing Actual and Predicted NDVI.png")
 files.download("Scatterplot Comparing Actual and Predicted NDVI.png")
 plt.show()
 
+#Atmospheric presence
 df1.plot(kind='bar',figsize=(10,8))
 plt.grid(which='major', linestyle='-', linewidth='0.5', color='green')
 plt.title("Comparing Actual and Predicted NDVI Values")
@@ -688,9 +690,6 @@ df1 = df1.sort_values(by=['Absolute Val of Residuals'])
 df1.reset_index(inplace=True, drop=True)
 df1
 
-#sort compare_df & df1 based on residuals
-import numpy as np
-
 """###**Step 2.A** -- Example of a Great Prediction"""
 
 min = np.min(abs_resid)
@@ -743,8 +742,8 @@ $$RMSE = \sqrt{\frac 1n\sum_{i=1}^n(y_i-\hat{y}_i)^2}$$
 #Standard Deviation
 np.std(y_test)
 
-print('Mean Absolute Error:', metrics.mean_absolute_error(y_test, y_pred))  
-print('Mean Squared Error:', metrics.mean_squared_error(y_test, y_pred))  
+print('Mean Absolute Error:', metrics.mean_absolute_error(y_test, y_pred))
+print('Mean Squared Error:', metrics.mean_squared_error(y_test, y_pred))
 print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
 
 """#Potential Extensions
@@ -752,5 +751,6 @@ print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test, y_p
 
 > Examine other curve-fitting models and compare results
 
-> Explore relationships between feature classification and r, g, and b ratios
+> Explore relationships between feature classifciation and r, g, and b ratios
+
 """
