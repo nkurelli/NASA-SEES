@@ -180,7 +180,6 @@ rgb_vals.to_csv('rgb_vals',index=False)
 files.download('rgb_vals')
 
 """###If you DO have the `rgb_vals` CSV, run the cells below to upload and save as a Dataframe:"""
-
 rgb_vals = files.upload()
 for fn in rgb_vals.keys():
   print('User uploaded file "{name}"'.format(name=fn))
@@ -220,57 +219,36 @@ appears_df.reset_index(inplace=True, drop=True)
 ##**Step 1** -- Remove all unnecessary columns
 # > Keep: `ID`, `Latitude`, `Longitude`, `Date`, `MOD13A1_006__500m_16_days_NDVI`
 appears_df = appears_df[['ID','Latitude','Longitude','Date','MOD13Q1_006__250m_16_days_NDVI']]
-appears_df
 
 ##**Step 2** -- Rename `MOD13A1_006__500m_16_days_NDVI` to instead be `NDVI`
 appears_df.columns = ['ID','Latitude','Longitude','Date','NDVI']
-appears_df
 
-"""##**Step 3** -- Clean-up NDVI column
-> For each location, the AppEEARS data request returned NDVI for 3 different dates: May 24, 2020, June 9, 2020, and June 25, 2020.
-
-> The AppEEARS data request also listed some NDVIs as -3000, an extraneous value that denotes the uselessness of that particular NDVI measurement.
-
-> So, we established an algorithm to address both these protocols and create 1 NDVI metric for each point.
-
-> This method does the following:
->> Given a unique ID, we extract the corresponding NDVI values from the three different dates.
->> We then iterated through each of those NDVI values; if all three NDVIs were extraneous, we recorded that ID to ignore in future calculations.
->> Otherwise, if at least one NDVI was positive, then we assigned the median of all non-extraneous NDVI values at that ID to that location ID.
-
-We used Median instead of Mean, since Median is less sensitive to outliers.
-"""
-
-#given inputted id #, get those 3 ndvi vals
-#if ndvi val is pos, add to ids_ndvi .. then add median ndvi to new df
-#if all 3 ndvis < 0, record that ID num as part of rgb_vals to be ignore & not add to df
-
-#PARAM -- ID = int
+## **Step 3** -- Clean-up NDVI column
+# > For each location, the AppEEARS data request returned NDVI for 3 different dates: May 24, 2020, June 9, 2020, and June 25, 2020.
+# > The AppEEARS data request also listed some NDVIs as -3000, an extraneous value that denotes the uselessness of that particular NDVI measurement.
+# > Find median of all non-extranneous ndvis. If all are extranneous, record the corresponding ID
 def calc_median_ndvi(ID):
-  #get rows w ID = ID_inputted
+  #Given a unique ID, extract the corresponding NDVI values from the three different dates.
   indexNames = appears_df[ (appears_df['ID'] == ID) ].index
-
   ids_ndvi = []
-
   count = 0 #num of extranneous vals
 
+  # Iterate through each NDVI val
   for i in indexNames:
     ndvi_val = appears_df['NDVI'][i]
-
     if (ndvi_val < 0) or (ndvi_val > 1):
       count += 1
     else:
       ids_ndvi.append(ndvi_val)
 
-  #if all 3 ndvis = extranneous
+  #If all 3 ndvis = extranneous, recorded that ID to ignore in future calculations.
   if count == 3:
     return -3000
   else:
     return np.median(ids_ndvi)
 
-#for all ID's, calc median ndvi && append to df
+# For all ID's, calc median ndvi && append to df
 df_as_list = []
-
 for id in rgb_vals['ID']:
   r_val = rgb_vals['Median r'][id]
   g_val = rgb_vals['Median g'][id]
@@ -279,55 +257,44 @@ for id in rgb_vals['ID']:
 
   dict_row = {'ID':id, 'Med_r':r_val, 'Med_g':g_val,'Med_b':b_val,'NDVI':ndvi_index}
   df_as_list.append(dict_row)
-  #print(dict_row) --> Un-comment this if you want to see the progression.
 
 df = pd.DataFrame(df_as_list)
 
-
-#drop rows w NDVI < -100
+# Drop rows w NDVI < -100
 indexNames = df[ (df['NDVI'] < -100 ) ].index
 df.drop(indexNames , inplace=True)
 df.reset_index(drop=True, inplace=True)
 
-#These ID's had no measured NDVI value, so we are excluding from test-train dataset!
-print(indexNames)
+# These ID's had no measured NDVI value, so we are excluding from test-train dataset!
+print(f"Excluding the following ID's, since no valid NDVI:\n{indexNames}")
 
 
-"""#Section 7 -- Determine relationship between GLOBE vegetation index & NDVI
-> What's the x/features & y/response?
->> x = RGB values
->
->> y = NDVI
+'''
+################################################################################
+#  Section 7 -- Determine relationship between GLOBE vegetation index & NDVI   #
+# > x/features = RGB values
+# > y/targets = NDVI
+################################################################################
+'''
 
 ##**Step 1** -- Import important packages
-"""
-
 # Commented out IPython magic to ensure Python compatibility.
 import seaborn as sns
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.linear_model import LinearRegression
 from sklearn import metrics
-# %matplotlib inline
 
-"""##**Step 2** -- Obtain Summary Statistics of RGB & NDVI"""
-
+##**Step 2** -- Get Summary Statistics of RGB & NDVI
 df_stats = df.describe()
 df_stats = df_stats[['Med_r','Med_g','Med_b','NDVI']]
-df_stats
 
-"""##**Step 3** -- Visualize RGB and NDVI in a 3D format"""
-
-import matplotlib.pyplot as plt
+##**Step 3** -- Visualize RGB and NDVI in a 3D format
 from mpl_toolkits import mplot3d
-
-import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
-
 ptx, pty, ptz = np.array(df['Med_r']), np.array(df['Med_g']), np.array(df['Med_b'])
 values = np.array(df['NDVI'])
-
 p = ax.scatter3D(ptx, pty, zs=ptz, c=values, cmap='viridis')
 
 cbar = fig.colorbar(p, ax=ax)
@@ -344,22 +311,16 @@ plt.figure(figsize=(15,10))
 plt.tight_layout()
 sns.distplot(df['NDVI'])
 
-"""##**Step 4** -- Why Multiple LINEAR Regression Model?
-
-> Visualize the relationship between each feature and the response using scatterplots
-
-> No Scatterplot has stronger relationship with NDVI, so must be multiple LINEAR regressive model, rather than multiple POLYNOMIAL regressive model
-
-> NOTE: Shaded Region represents 95% Confidence Interval
-"""
+## **Step 4** -- Why Multiple LINEAR Regression Model?
+# > Visualize the relationship between each feature and the response using scatterplots
+# > No Scatterplot has stronger relationship with NDVI, so must be multiple LINEAR regressive model, rather than multiple POLYNOMIAL regressive model
+# > NOTE: Shaded Region represents 95% Confidence Interval
 
 f = sns.pairplot(df,x_vars=['Med_r','Med_g','Med_b'],y_vars='NDVI', height=7, aspect=0.7, kind='reg').fig
-#f = f.fig
-# Use semantically meaningful titles for the columns
+
+# Use meaningful titles for the columns
 titles = ["r v NDVI", "g v NDVI", "b v NDVI"]
-
 for ax, title in zip(f.axes, titles):
-
     # Set a different title for each axes
     ax.set(title=title)
 
@@ -367,11 +328,9 @@ for ax, title in zip(f.axes, titles):
     ax.xaxis.grid(False)
     ax.yaxis.grid(True)
 
-#f.write_image(file='Pairplot of RGB Values vs NDVI', format='.png')
-#files.download("Pairplot of RGB Values vs NDVI")
-
-#plt.title("RGB Values vs NDVI")
-#kind='reg' adds line of best fit && 95%confidence
+# f.write_image(file='Pairplot of RGB Values vs NDVI', format='.png')
+# files.download("Pairplot of RGB Values vs NDVI")
+# plt.title("RGB Values vs NDVI")
 
 """##**Step 5** -- Multiple Linear Regression
 
@@ -383,12 +342,9 @@ for ax, title in zip(f.axes, titles):
 
 > In this case:
 * $\widehat{NDVI} = \beta_0 + \beta_1 \times r + \beta_2 \times g + \beta_3 \times b$
-
-###**Step 5.A** -- Defining x/features & y/response
 """
 
-import matplotlib.pyplot as plt
-
+###**Step 5.A** -- Defining x/features & y/response
 feature_names = ['Med_r','Med_g','Med_b']
 
 x = df[['Med_r','Med_g','Med_b']].values
@@ -398,10 +354,7 @@ y = df['NDVI'].values
 #x = np.column_stack((df['Med_r'],df['Med_g'],df['Med_b']))
 #y = df['NDVI'].values
 
-"""###**Step 5.B** -- Determining optimal Random_State
-> Which random_state works best for our data? (Results in lowest RSME?)
-"""
-
+###**Step 5.B** -- Determining optimal Random_State (Results in lowest RSME?)
 rand_range = range(501)
 rmse_scores = []
 for k in rand_range:
@@ -422,8 +375,7 @@ plt.savefig("Random_State_vs_RMSE_Scores.png")
 files.download("Random_State_vs_RMSE_Scores.png")
 plt.show()
 
-"""###**Step 5.C** -- Performing Multiple Linear Regression using Random_State"""
-
+###**Step 5.C** -- Performing Multiple Linear Regression using Random_State
 indices = np.array(df['ID'])
 x_train, x_test, y_train, y_test, indx_train, indx_test = train_test_split(x, y, indices, test_size=0.20, random_state=rand_st)
 
@@ -440,13 +392,10 @@ print(linreg.coef_)
 y_pred = linreg.predict(x_test)
 
 """Therefore, our function is as follows:
-
-
 $$\widehat{NDVI} = 0.5758681819753635 + (-0.00149881) \times r + (0.00184785) \times g + (-0.00094755) \times b$$
-
-###CREATE SUMMARY DF WITH RGB & PRED
 """
 
+### CREATE SUMMARY DF WITH RGB & PRED
 residuals = y_test - y_pred
 compare_df = pd.DataFrame({'ID':indx_test,'Actual': y_test, 'Predicted': y_pred, 'Residuals':residuals, 'Absolute Val of Residuals':abs(residuals)})
 
@@ -463,7 +412,6 @@ def get_rgb_vals_from_df(ID):
 for i in rgb_and_pred_ndvi['ID']:
   mini_rgb_df.append(get_rgb_vals_from_df(i))
 
-
 mini_rgb_df = pd.DataFrame(mini_rgb_df)
 
 rgb_and_pred_ndvi['Med r'] = mini_rgb_df['Med r']
@@ -474,13 +422,14 @@ rgb_and_pred_ndvi['Predicted NDVI'] = rgb_and_pred_ndvi['Predicted']
 rgb_and_pred_ndvi = rgb_and_pred_ndvi[['ID','Med r', 'Med g', 'Med b', 'Predicted NDVI']]
 rgb_and_pred_ndvi.columns = ['ID','Med r', 'Med g', 'Med b', 'Predicted NDVI']
 
-"""**Method** -- Given residual target, find the corressponding image
 
-#Section 8 -- Evaluating accuracy of our Multiple Regression Model
+'''
+################################################################################
+#        Section 8 -- Evaluating accuracy of our Multiple Regression Model     #
+################################################################################
+'''
 
-##**Step 1** -- Visualizing True vs Predicted NDVI
-"""
-
+## **Step 1** -- Visualizing True vs Predicted NDVI
 df1 = pd.DataFrame({'Actual': y_test, 'Predicted': y_pred})
 df1 = df1.head(25)
 
@@ -492,7 +441,6 @@ plt.savefig("Scatterplot Comparing Actual and Predicted NDVI.png")
 files.download("Scatterplot Comparing Actual and Predicted NDVI.png")
 plt.show()
 
-#Atmospheric presence
 df1.plot(kind='bar',figsize=(10,8))
 plt.grid(which='major', linestyle='-', linewidth='0.5', color='green')
 plt.title("Comparing Actual and Predicted NDVI Values")
@@ -549,15 +497,12 @@ plt.savefig("Residuals Scatterplot.png")
 files.download("Residuals Scatterplot.png")
 plt.show()
 
-"""##**Step 2** -- A Closer Look at Residuals
-> Create residuals_df with following columns: index, y_test, y_pred, residual, absolute value of residual
-"""
+## **Step 2** -- A Closer Look at Residuals
+# > Create residuals_df with following columns: index, y_test, y_pred, residual, absolute value of residual
 df1['Absolute Val of Residuals'] = compare_df['Absolute Val of Residuals']
 
-"""##**Step 3** -- Extracting examples of great, ok, and bad predictions"""
-
+##**Step 3** -- Extracting examples of great, ok, and bad predictions
 def get_img_from_resid(target_resid):
-  #pic_loc = df1[ (df1['Absolute Val of Residuals'] == target_resid ) ].index
   pic_loc = compare_df[ (compare_df['Absolute Val of Residuals'] == target_resid ) ].index
   pic_loc = pic_loc[0]
 
@@ -574,39 +519,29 @@ def get_img_from_resid(target_resid):
   convert_to_thumbnail(img,(500,500,3))
   return img
 
-#Finding pics for 1st 25 test images
+# Finding pics for 1st 25 test images
 org_compare_df = compare_df.sort_values(by=['Absolute Val of Residuals'])
 abs_resid = np.array(org_compare_df['Absolute Val of Residuals'])
 
-"""**Sort df1 in ascending order for Absolute Value of Residual**"""
-
+# **Sort df1 in ascending order for Absolute Value of Residual**
 df1 = df1.sort_values(by=['Absolute Val of Residuals'])
 df1.reset_index(inplace=True, drop=True)
 
-
-"""###**Step 2.A** -- Example of a Great Prediction"""
-
+###**Step 2.A** -- Example of a Great Prediction"""
 min = np.min(abs_resid)
 image_best = get_img_from_resid(min)
 
-
-"""###**Step 2.B** -- Example of a Mediocre Prediction"""
-
+###**Step 2.B** -- Example of a Mediocre Prediction"""
 last_index = org_compare_df.shape[0] - 1
 med_index = int((last_index - 0)/2 + 1)
 med_resid = org_compare_df['Absolute Val of Residuals'][med_index]
 image_ok = get_img_from_resid(med_resid)
 
-
-"""###**Step 2.C** -- Example of a Not-so-great Prediction"""
-
-#max = np.max(abs_resid)
+###**Step 2.C** -- Example of a Not-so-great Prediction"""
 max = abs_resid[len(abs_resid)-4]
 image_worst = get_img_from_resid(max)
 
-
-"""###**General Testing**"""
-
+###**General Testing**
 abs_resid = np.array(compare_df['Absolute Val of Residuals'])
 target_resid = np.max(abs_resid)
 pic_loc = compare_df[ (compare_df['Absolute Val of Residuals'] == target_resid ) ].index
@@ -620,7 +555,6 @@ id_pic = int(compare_df['ID'][pic_loc])
 globe_pic_loc = globe_df['Measured Value'][id_pic]
 img = get_img_from_url(globe_pic_loc)
 
-
 """##**Step 4** - Standard Evaluation Metrics Calculations
 
 ###Linear Regression Evaluation Metrics
@@ -631,7 +565,6 @@ $$MSE = \frac 1n\sum_{i=1}^n(y_i-\hat{y}_i)^2$$
 3. ***ROOT MEAN SQUARED ERROR (RMSE)*** --  square root of MSE
 $$RMSE = \sqrt{\frac 1n\sum_{i=1}^n(y_i-\hat{y}_i)^2}$$
 """
-
 #Standard Deviation
 np.std(y_test)
 
